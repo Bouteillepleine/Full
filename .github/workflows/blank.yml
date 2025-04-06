@@ -146,14 +146,7 @@ jobs:
             # Disable excessive debugging features
             "CONFIG_DEBUG_KERNEL=n"
             "CONFIG_DYNAMIC_DEBUG=n"
-            "CONFIG_DEBUG_INFO=n"
-            "CONFIG_DETECT_HUNG_TASK=n"
-            "CONFIG_SCHED_DEBUG=n"
-            "CONFIG_SCHEDSTATS=n"
-            "CONFIG_TIMER_STATS=n"
-            "CONFIG_PROVE_LOCKING=n"
-            "CONFIG_LOCKDEP=n"
-            "CONFIG_DEBUG_PREEMPT=n"            
+            "CONFIG_DEBUG_INFO=n"                       
           )
           for CONFIG in "${CONFIGS[@]}"; do
             echo "$CONFIG" >> ./common/arch/arm64/configs/gki_defconfig
