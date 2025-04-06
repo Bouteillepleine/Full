@@ -11,7 +11,6 @@ env:
   ROOT_DIR_PREFIX: "OP13r-A15"
   BRANCH: "android14-6.1"
   GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-  SUSFS_URL: "https://github.com/sidex15/ksu_module_susfs/releases/latest/download/ksu_module_susfs_1.5.2+.zip"
 
 jobs:
   build-release:
@@ -48,7 +47,7 @@ jobs:
           curl -s https://storage.googleapis.com/git-repo-downloads/repo > ~/.bin/repo
           chmod a+x ~/.bin/repo
           echo "$HOME/.bin" >> $GITHUB_PATH
-          export PATH="$HOME/.bin:$PATH"  # Ensure PATH is updated immediately
+          export PATH="$HOME/.bin:$PATH"
           git config --global user.name "GitHub Actions Bot"
           git config --global user.email "actions@github.com"
 
@@ -116,45 +115,37 @@ jobs:
         run: |
           set -e
           CONFIGS=(
-            # Full LTO Configuration
             "CONFIG_LTO_CLANG=y"
             "CONFIG_THINLTO=n"
             "CONFIG_LTO_NONE=n"
             "CONFIG_LD_DEAD_CODE_DATA_ELIMINATION=y"
-            # KernelSU Configuration
-            "CONFIG_KSU=y" 
-            "CONFIG_KSU_WITH_KPROBES=n" 
+            "CONFIG_KSU=y"
+            "CONFIG_KSU_WITH_KPROBES=n"
             "CONFIG_KSU_SUSFS=y"
-            "CONFIG_KSU_SUSFS_HAS_MAGIC_MOUNT=y" 
-            "CONFIG_KSU_SUSFS_SUS_PATH=y" 
+            "CONFIG_KSU_SUSFS_HAS_MAGIC_MOUNT=y"
+            "CONFIG_KSU_SUSFS_SUS_PATH=y"
             "CONFIG_KSU_SUSFS_SUS_MOUNT=y"
             "CONFIG_KSU_SUSFS_AUTO_ADD_SUS_KSU_DEFAULT_MOUNT=y"
-            "CONFIG_KSU_SUSFS_AUTO_ADD_SUS_BIND_MOUNT=y" 
+            "CONFIG_KSU_SUSFS_AUTO_ADD_SUS_BIND_MOUNT=y"
             "CONFIG_KSU_SUSFS_SUS_KSTAT=y"
             "CONFIG_KSU_SUSFS_SUS_OVERLAYFS=n"
-            "CONFIG_KSU_SUSFS_TRY_UMOUNT=y" 
+            "CONFIG_KSU_SUSFS_TRY_UMOUNT=y"
             "CONFIG_KSU_SUSFS_AUTO_ADD_TRY_UMOUNT_FOR_BIND_MOUNT=y"
-            "CONFIG_KSU_SUSFS_SPOOF_UNAME=y" 
+            "CONFIG_KSU_SUSFS_SPOOF_UNAME=y"
             "CONFIG_KSU_SUSFS_ENABLE_LOG=y"
             "CONFIG_KSU_SUSFS_HIDE_KSU_SUSFS_SYMBOLS=y"
             "CONFIG_KSU_SUSFS_SPOOF_CMDLINE_OR_BOOTCONFIG=y"
             "CONFIG_KSU_SUSFS_OPEN_REDIRECT=y"
             "CONFIG_KSU_SUSFS_SUS_SU=n"
-            # Filesystem
             "CONFIG_TMPFS_XATTR=y"
             "CONFIG_TMPFS_POSIX_ACL=y"
-            # Network
             "CONFIG_IP_NF_TARGET_TTL=y"
             "CONFIG_IP6_NF_TARGET_HL=y"
             "CONFIG_IP6_NF_MATCH_HL=y"
-            # Scheduler
             "CONFIG_SCHED_CLASS_EXT=y"
             "CONFIG_SMP=y"
             "CONFIG_CPU_FREQ_GOV_SCHEDUTIL=y"
             "CONFIG_MSM_PERFORMANCE=y"
-            # power consumption
-            "CONFIG_NO_HZ_IDLE=y"
-            "CONFIG_PM_SLEEP_SMP=y"
             "CONFIG_NO_HZ_IDLE=y"
             "CONFIG_PM_SLEEP_SMP=y"
             "CONFIG_ENERGY_MODEL=y"
@@ -188,7 +179,7 @@ jobs:
           export CLANG_TRIPLE="aarch64-linux-gnu-"
           export CROSS_COMPILE="aarch64-linux-gnu-"
           export CROSS_COMPILE_COMPAT="arm-linux-gnueabi-"
-          
+
           for i in {1..3}; do
             ./build_with_bazel.py \
               -t pineapple \
@@ -202,29 +193,32 @@ jobs:
               -o "$(pwd)/out" && break || sleep 10
           done
 
-      - name: Create ZIP Package
-        working-directory: builds/${{ env.ROOT_DIR }}
+      - name: Package with AnyKernel3
+        working-directory: builds/${{ env.ROOT_DIR }}/kernel_platform/oneplus13r_v/
         run: |
-          if [ ! -f kernel_platform/oneplus13r_v/kernel_platform/out/dist/Image ]; then
-            echo "❌ Kernel image not found"
-            exit 1
+          cd kernel_platform
+          mkdir -p anykernel_out
+          IMAGE_PATH=""
+
+          if [ -f out/android14-6.1/dist/Image.gz-dtb ]; then
+            IMAGE_PATH="out/android14-6.1/dist/Image.gz-dtb"
+          elif [ -f out/android14-6.1/dist/Image ]; then
+            IMAGE_PATH="out/android14-6.1/dist/Image"
+          else
+            echo "❌ Kernel image not found!" && exit 1
           fi
-          cp kernel_platform/oneplus13r_v/kernel_platform/out/dist/Image AnyKernel3/Image || {
-            echo "❌ Failed to copy kernel image"
-            exit 1
-          }
-          cd AnyKernel3
-          ZIP_NAME="OP13r-KSU-${KSUVER}-ThinLTO.zip"
-          echo "📦 Creating zip file: $ZIP_NAME"
-          zip -r "../$ZIP_NAME" ./* || {
-            echo "❌ Failed to create zip file"
-            exit 1
-          }
-          ls -lh "../$ZIP_NAME"
+
+          echo "✅ Found kernel image at $IMAGE_PATH"
+
+          cp "$IMAGE_PATH" ../AnyKernel3/Image.gz-dtb
+          cd ../AnyKernel3
+          ZIP_NAME="OP13r-Kernel-KSU-${KSUVER}-FullLTO.zip"
+          zip -r9 "../kernel_platform/anykernel_out/$ZIP_NAME" ./*
           echo "zip_name=$ZIP_NAME" >> $GITHUB_ENV
-      
+          echo "✅ Zipped as $ZIP_NAME"
+
       - name: Upload Build Artifacts
         uses: actions/upload-artifact@v4
         with:
           name: kernel-${{ env.ROOT_DIR }}
-          path: builds/${{ env.ROOT_DIR }}/*.zip
+          path: builds/${{ env.ROOT_DIR }}/kernel_platform/anykernel_out/*.zip
