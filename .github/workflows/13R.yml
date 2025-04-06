@@ -32,7 +32,7 @@ jobs:
             ${{ runner.os }}-ccache-
 
       - name: Cache Kernel Build Output
-        uses: actions/cache@v2
+        uses: actions/cache@v4
         with:
           path: builds/${{ env.ROOT_DIR }}/kernel_platform/oneplus13r_v/kernel_platform/out
           key: ${{ runner.os }}-kernel-${{ hashFiles('**/*.c') }}
