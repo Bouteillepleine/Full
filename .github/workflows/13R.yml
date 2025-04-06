@@ -15,14 +15,14 @@ env:
 jobs:
   build-release:
     runs-on: ubuntu-latest
-    timeout-minutes: 120  # Set timeout to 2 hours to prevent premature termination
+    timeout-minutes: 120  # Extend timeout to 2 hours
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
         with:
           fetch-depth: 1
 
-      # Caching Toolchain and Build Outputs
+      # Cache Toolchain and Build Outputs using actions/cache@v4
       - name: Cache Toolchain
         uses: actions/cache@v4
         with:
@@ -34,19 +34,17 @@ jobs:
       - name: Cache Kernel Build Output
         uses: actions/cache@v4
         with:
-          path: builds/${{ env.ROOT_DIR }}/kernel_platform/oneplus13r_v/kernel_platform/out
+          path: builds/${{ steps.set_root.outputs.ROOT_DIR }}/kernel_platform/oneplus13r_v/kernel_platform/out
           key: ${{ runner.os }}-kernel-${{ hashFiles('**/*.c') }}
           restore-keys: |
             ${{ runner.os }}-kernel-
 
-      # Free disk space before starting the build
       - name: Free Disk Space
         run: |
           sudo apt-get update -qq
           sudo apt-get install -qq curl
           curl -fsSL https://raw.githubusercontent.com/kou/arrow/e49d8ae15583ceff03237571569099a6ad62be32/ci/scripts/util_free_space.sh | bash
 
-      # Setup Build Environment
       - name: Setup Build Environment
         run: |
           sudo apt-get update
@@ -59,9 +57,32 @@ jobs:
           sudo update-alternatives --install /usr/bin/lld lld /usr/bin/lld-15 100
           sudo update-alternatives --install /usr/bin/ld.lld ld.lld /usr/bin/ld.lld-15 100
 
-      # Clone Repositories with Retry Logic
+      - name: Setup Python and Repo Tool
+        run: |
+          python3 -m pip install --upgrade pip
+          pip3 install gitpython xmltodict
+          mkdir -p ~/.bin
+          curl -s https://storage.googleapis.com/git-repo-downloads/repo > ~/.bin/repo
+          chmod a+x ~/.bin/repo
+          echo "$HOME/.bin" >> $GITHUB_PATH
+          export PATH="$HOME/.bin:$PATH"
+          git config --global user.name "GitHub Actions Bot"
+          git config --global user.email "actions@github.com"
+
+      # Set the ROOT_DIR as an output so that it can be referenced in later steps.
+      - name: Set ROOT_DIR
+        id: set_root
+        run: |
+          ROOT_DIR="${ROOT_DIR_PREFIX}-$(date +'%Y-%m-%d-%I-%M-%p')-release"
+          echo "ROOT_DIR=${ROOT_DIR}" >> $GITHUB_OUTPUT
+          mkdir -p "builds/${ROOT_DIR}"
+          echo "Created build directory: builds/${ROOT_DIR}"
+
+      # Clone Required Repositories into the build directory
       - name: Clone Repositories
         run: |
+          BUILD_DIR="builds/${{ steps.set_root.outputs.ROOT_DIR }}"
+          cd "$BUILD_DIR"
           repos=(
             "https://github.com/Kernel-SU/AnyKernel3 --depth=1"
             "https://gitlab.com/simonpunk/susfs4ksu.git -b gki-android14-6.1"
@@ -69,22 +90,23 @@ jobs:
           )
           for repo in "${repos[@]}"; do
             for i in {1..3}; do
-              git clone $repo && break || { echo "Retrying..."; sleep 10; }
+              git clone $repo && break || { echo "Retrying clone for $repo..."; sleep 10; }
             done
           done
 
-      # Setup Kernel Source and KernelSU
+      # Setup Kernel Source – now working in the proper build directory
       - name: Setup Kernel Source
-        working-directory: builds/${{ env.ROOT_DIR }}
         run: |
-          mkdir -p kernel_platform/oneplus13r_v
-          cd kernel_platform/oneplus13r_v
+          BUILD_DIR="builds/${{ steps.set_root.outputs.ROOT_DIR }}"
+          mkdir -p "$BUILD_DIR/kernel_platform/oneplus13r_v"
+          cd "$BUILD_DIR/kernel_platform/oneplus13r_v"
           repo init -u https://github.com/OnePlusOSS/kernel_manifest.git -b oneplus/sm8650 -m oneplus_13r.xml --depth=1 || { echo "Failed to initialize repo"; exit 1; }
           repo sync -c -j$(nproc --all) --force-sync --no-clone-bundle --no-tags || { echo "Failed to sync repo"; exit 1; }
 
       - name: Setup KernelSU
-        working-directory: builds/${{ env.ROOT_DIR }}/kernel_platform/oneplus13r_v/kernel_platform
         run: |
+          BUILD_DIR="builds/${{ steps.set_root.outputs.ROOT_DIR }}"
+          cd "$BUILD_DIR/kernel_platform/oneplus13r_v/kernel_platform"
           curl -LSs "https://raw.githubusercontent.com/rifsxd/KernelSU-Next/next/kernel/setup.sh" | bash -s next
           git submodule update --init --recursive
           cd KernelSU-Next/kernel
@@ -92,10 +114,10 @@ jobs:
           echo "KSUVER=$KSU_VERSION" >> $GITHUB_ENV
           sed -i "s/DKSU_VERSION=11998/DKSU_VERSION=${KSU_VERSION}/" Makefile
 
-      # Setup SUSFS
       - name: Setup SUSFS
-        working-directory: builds/${{ env.ROOT_DIR }}/kernel_platform/oneplus13r_v/kernel_platform
         run: |
+          BUILD_DIR="builds/${{ steps.set_root.outputs.ROOT_DIR }}"
+          cd "$BUILD_DIR/kernel_platform/oneplus13r_v/kernel_platform"
           git clone https://gitlab.com/simonpunk/susfs4ksu.git -b gki-android14-6.1
           git clone https://github.com/WildPlusKernel/kernel_patches.git
           cp susfs4ksu/kernel_patches/50_add_susfs_in_gki-android14-6.1.patch ./common/
@@ -112,11 +134,10 @@ jobs:
           fi
           patch -p1 -F 3 < syscall_hooks.patch || true
 
-      # Configure Kernel
       - name: Configure Kernel
-        working-directory: builds/${{ env.ROOT_DIR }}/kernel_platform/oneplus13r_v/kernel_platform
         run: |
-          set -e
+          BUILD_DIR="builds/${{ steps.set_root.outputs.ROOT_DIR }}"
+          cd "$BUILD_DIR/kernel_platform/oneplus13r_v/kernel_platform"
           CONFIGS=( 
             "CONFIG_LTO_CLANG=y"
             "CONFIG_THINLTO=n"
@@ -162,10 +183,10 @@ jobs:
           done
           sed -i '2s/check_defconfig//' ./common/build.config.gki
 
-      # Build Kernel with Full LTO
       - name: Build Kernel with Full LTO
-        working-directory: builds/${{ env.ROOT_DIR }}/kernel_platform/oneplus13r_v/
         run: |
+          BUILD_DIR="builds/${{ steps.set_root.outputs.ROOT_DIR }}"
+          cd "$BUILD_DIR/kernel_platform/oneplus13r_v/"
           cd kernel_platform
           mkdir -p out
           export PATH="/usr/lib/ccache:$PATH"
@@ -173,21 +194,4 @@ jobs:
           export LLVM_IAS=1
           export CLANG_TRIPLE="aarch64-linux-gnu-"
           export CROSS_COMPILE="aarch64-linux-gnu-"
-          export CROSS_COMPILE_COMPAT="arm-linux-gnueabi-"
-          ./build_with_bazel.py \
-            -t pineapple \
-            gki \
-            --jobs=$(nproc --all) \
-            --verbose_failures \
-            --config=stamp \
-            --user_kmi_symbol_lists=//msm-kernel:android/abi_gki_aarch64_qcom \
-            --ignore_missing_projects \
-            --lto=full \
-            -o "$(pwd)/out"
-
-      # Create ZIP Package for Kernel
-      - name: Create ZIP Package
-        working-directory: builds/${{ env.ROOT_DIR }}/AnyKernel3
-        run: |
-          cp kernel_platform/oneplus13r_v/kernel_platform/out/dist/Image AnyKernel3/Image
-          zip -r "OP13r
+          export CROSS_COMPILE_COMPAT="arm-linux-gnueabi-
