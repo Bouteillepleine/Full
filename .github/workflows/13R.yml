@@ -27,6 +27,7 @@ jobs:
           sudo apt-get update -qq
           sudo apt-get install -qq curl
           curl -fsSL https://raw.githubusercontent.com/kou/arrow/e49d8ae15583ceff03237571569099a6ad62be32/ci/scripts/util_free_space.sh | bash
+
       - name: Setup Build Environment
         run: |
           sudo apt-get update
@@ -63,7 +64,7 @@ jobs:
             "https://github.com/WildPlusKernel/kernel_patches.git"
           )
           for repo in "${repos[@]}"; do
-            git clone $repo || { echo "Failed to clone $repo"; exit 1; }
+            git clone "$repo" || { echo "Failed to clone $repo"; exit 1; }
           done
 
       - name: Setup Kernel Source
@@ -114,9 +115,9 @@ jobs:
             # LTO Configuration
             "CONFIG_LTO_CLANG=y"
             "CONFIG_THINLTO=n"
-            
+
             # KernelSU Configuration
-            ""CONFIG_KSU=y" 
+            "CONFIG_KSU=y" 
             "CONFIG_KSU_WITH_KPROBES=n" 
             "CONFIG_KSU_SUSFS=y"
             "CONFIG_KSU_SUSFS_HAS_MAGIC_MOUNT=y" 
