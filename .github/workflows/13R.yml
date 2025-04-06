@@ -115,9 +115,9 @@ jobs:
         run: |
           set -e
           CONFIGS=(
-            # ThinLTO Configuration
+            # Full LTO Configuration
             "CONFIG_LTO_CLANG=y"
-            "CONFIG_THINLTO=y"
+            "CONFIG_THINLTO=n"
             "CONFIG_LTO_NONE=n"
             "CONFIG_LD_DEAD_CODE_DATA_ELIMINATION=y"
             # KernelSU Configuration
@@ -196,7 +196,7 @@ jobs:
             --config=stamp \
             --user_kmi_symbol_lists=//msm-kernel:android/abi_gki_aarch64_qcom \
             --ignore_missing_projects \
-            --lto=thin \
+            --lto=full \
             -o "$(pwd)/out" || { echo "Bazel build failed"; exit 1; }
 
       - name: Create ZIP Package
