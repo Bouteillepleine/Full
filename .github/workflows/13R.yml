@@ -1,4 +1,4 @@
-name: One+ build Susf4Ksu
+name: One+ build Susf4Ksu (ThinLTO)
 
 on:
   push:
@@ -32,10 +32,13 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
-            clang lld \
+            clang-15 lld-15 llvm-15 \
             python3-pip curl git zip unzip gcc g++ make ninja-build file \
             bc bison flex libssl-dev libelf-dev wget build-essential \
             python3-dev python3-setuptools rsync ccache cmake libdw-dev zlib1g-dev
+          sudo update-alternatives --install /usr/bin/clang clang /usr/bin/clang-15 100
+          sudo update-alternatives --install /usr/bin/lld lld /usr/bin/lld-15 100
+          sudo update-alternatives --install /usr/bin/ld.lld ld.lld /usr/bin/ld.lld-15 100
 
       - name: Setup Python and Repo Tool
         run: |
@@ -64,7 +67,7 @@ jobs:
             "https://github.com/WildPlusKernel/kernel_patches.git"
           )
           for repo in "${repos[@]}"; do
-            git clone "$repo" || { echo "Failed to clone $repo"; exit 1; }
+            git clone $repo || { echo "Failed to clone $repo"; exit 1; }
           done
 
       - name: Setup Kernel Source
@@ -112,10 +115,11 @@ jobs:
         run: |
           set -e
           CONFIGS=(
-            # LTO Configuration
+            # ThinLTO Configuration
             "CONFIG_LTO_CLANG=y"
-            "CONFIG_THINLTO=n"
-
+            "CONFIG_THINLTO=y"
+            "CONFIG_LTO_NONE=n"
+            "CONFIG_LD_DEAD_CODE_DATA_ELIMINATION=y"
             # KernelSU Configuration
             "CONFIG_KSU=y" 
             "CONFIG_KSU_WITH_KPROBES=n" 
@@ -180,6 +184,10 @@ jobs:
           export PATH="/usr/lib/ccache:$PATH"
           export LLVM=1
           export LLVM_IAS=1
+          export CLANG_TRIPLE="aarch64-linux-gnu-"
+          export CROSS_COMPILE="aarch64-linux-gnu-"
+          export CROSS_COMPILE_COMPAT="arm-linux-gnueabi-"
+          
           ./build_with_bazel.py \
             -t pineapple \
             gki \
@@ -188,7 +196,7 @@ jobs:
             --config=stamp \
             --user_kmi_symbol_lists=//msm-kernel:android/abi_gki_aarch64_qcom \
             --ignore_missing_projects \
-            --lto=full \
+            --lto=thin \
             -o "$(pwd)/out" || { echo "Bazel build failed"; exit 1; }
 
       - name: Create ZIP Package
@@ -203,7 +211,7 @@ jobs:
             exit 1
           }
           cd AnyKernel3
-          ZIP_NAME="OP13r-KSU-${KSUVER}-LTO.zip"
+          ZIP_NAME="OP13r-KSU-${KSUVER}-ThinLTO.zip"
           echo "📦 Creating zip file: $ZIP_NAME"
           zip -r "../$ZIP_NAME" ./* || {
             echo "❌ Failed to create zip file"
