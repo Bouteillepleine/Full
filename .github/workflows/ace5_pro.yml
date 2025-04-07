@@ -162,23 +162,23 @@ jobs:
       - name: Build Kernel
         working-directory: builds/${{ env.ROOT_DIR }}/kernel_platform/oneplus13r_v/
         run: |
-          cd kernel_platform
-          mkdir out
-          export PATH="/usr/lib/ccache:$PATH"
-          if [ -f ./build_with_bazel.py ]; then
-            ./build_with_bazel.py \
-              -t ${{ inputs.soc }} \
-              gki \
-              --jobs=$(nproc --all) \
-              --verbose_failures \
-              --config=stamp \
-              --user_kmi_symbol_lists=//msm-kernel:android/abi_gki_aarch64_qcom \
-              --ignore_missing_projects \
-              --lto=thin \
-              -o "$(pwd)/out" || { echo "Bazel build failed"; exit 1; }
-          else
-            ./kernel_platform/oplus/build/oplus_build_kernel.sh sun perf
-          fi
+           cd kernel_platform
+           mkdir out
+           export PATH="/usr/lib/ccache:$PATH"
+           if [ -f ./build_with_bazel.py ]; then
+             ./build_with_bazel.py \
+               -t target1 target2 \  # Correct arguments for the --target option
+               gki \
+               --jobs=$(nproc --all) \
+               --verbose_failures \
+               --config=stamp \
+               --user_kmi_symbol_lists=//msm-kernel:android/abi_gki_aarch64_qcom \
+               --ignore_missing_projects \
+               --lto=thin \
+               -o "$(pwd)/out" || { echo "Bazel build failed"; exit 1; }
+           else
+             ./kernel_platform/oplus/build/oplus_build_kernel.sh sun perf
+           fi
       - name: Create ZIP Package
         working-directory: builds/${{ env.ROOT_DIR }}
         run: |
