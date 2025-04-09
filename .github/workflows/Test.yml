@@ -5,17 +5,17 @@ on:
     branches:
       - main
   workflow_dispatch:
-   inputs:
+    inputs:
       inputs.soc:
         description: "inputs.soc"
         required: true
-        default: 'sun'   
+        default: 'sun'
 
 env:
   DEBIAN_FRONTEND: noninteractive
   ROOT_DIR_PREFIX: "OP13r-A15"
   BRANCH: "android15-6.6"
-  GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}  
+  GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
 jobs:
   build-release:
@@ -38,7 +38,7 @@ jobs:
           sudo apt-get install -y --no-install-recommends \
             python3-pip curl git zip unzip gcc g++ make ninja-build file \
             bc bison flex libssl-dev libelf-dev wget build-essential \
-            python3-dev python3-setuptools rsync ccache cmake libdw-dev zlib1g-dev     
+            python3-dev python3-setuptools rsync ccache cmake libdw-dev zlib1g-dev
 
       - name: Setup Python and Repo Tool
         run: |
@@ -152,8 +152,6 @@ jobs:
             # power consumption
             "CONFIG_NO_HZ_IDLE=y"
             "CONFIG_PM_SLEEP_SMP=y"
-            "CONFIG_NO_HZ_IDLE=y"
-            "CONFIG_PM_SLEEP_SMP=y"
             "CONFIG_ENERGY_MODEL=y"
             "CONFIG_PM_AUTOSLEEP=y"
             "CONFIG_DEBUG_KERNEL=n"
@@ -163,7 +161,6 @@ jobs:
           for CONFIG in "${CONFIGS[@]}"; do
             echo "$CONFIG" >> ./common/arch/arm64/configs/gki_defconfig
           done
-          sed -i '2s/check_defconfig//' ./common/build.config.gki
 
       - name: Run sed Commands
         working-directory: builds/${{ env.ROOT_DIR }}/kernel_platform/oneplus13r_v/kernel_platform
@@ -178,25 +175,30 @@ jobs:
       - name: Build the Kernel
         run: |
           echo "Changing to configuration directory: $CONFIG..."
-          cd "$CONFIG"
-          
+          cd "$CONFIG" || { echo "Failed to change directory to $CONFIG"; exit 1; }
+
           echo "Building the kernel..."
           rm ./kernel_platform/common/android/abi_gki_protected_exports_* || echo "No protected exports!"
           rm ./kernel_platform/msm-kernel/android/abi_gki_protected_exports_* || echo "No protected exports!"
-                    
+
           BUILD_TYPE="gki"
-          BAZEL_ARGS=(--jobs=$(nproc --all) --verbose_failures --lto=thin)
+          BAZEL_ARGS=("--jobs=$(nproc --all)" "--verbose_failures" "--lto=thin")
           if [ "${{ inputs.soc }}" == "sun" ]; then
             BUILD_TYPE="perf"
             BAZEL_ARGS+=(-g)
           fi
-          
+
           if [ -f ./kernel_platform/build_with_bazel.py ]; then
             ./kernel_platform/oplus/bazel/oplus_modules_variant.sh ${{ inputs.soc }} "$BUILD_TYPE" ""
-            ./kernel_platform/build_with_bazel.py -t ${{ inputs.soc }} "$BUILD_TYPE" "${BAZEL_ARGS[@]}" -o "$(pwd)/out"
+            if ! ./kernel_platform/build_with_bazel.py -t ${{ inputs.soc }} "$BUILD_TYPE" "${BAZEL_ARGS[@]}" -o "$(pwd)/out"; then
+              echo "Kernel build failed!"
+              exit 1
+            fi
           else
+            echo "build_with_bazel.py not found, using alternative build script..."
             LTO=thin ./kernel_platform/oplus/build/oplus_build_kernel.sh ${{ inputs.soc }} "$BUILD_TYPE"
-          fi            
+          fi
+
       - name: Create ZIP Package
         working-directory: builds/${{ env.ROOT_DIR }}
         run: |
