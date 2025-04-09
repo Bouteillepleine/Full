@@ -168,31 +168,7 @@ jobs:
           mkdir out
           export PATH="/usr/lib/ccache:$PATH"
           ./build_with_bazel.py \
-            -t pineapple \
-
-            
-            (stdbuf -oL bash -c '
-            while true; do
-              echo "=== $(date) ==="
-              free -h
-              echo "======"
-              df -h
-              echo "======"
-              top -b -n 1 | head -n 15
-              echo ""
-              sleep 60
-            done
-          ') &
-          MONITOR_PID=$!
-          trap "kill $MONITOR_PID" EXIT
-          
-          bash -c '
-            while true; do
-              sync; echo 3 > /proc/sys/vm/drop_caches
-              sleep 120
-            done
-          ' >/dev/null 2>&1 &
-            
+            -t pineapple \            
             gki \
             --jobs=$(nproc --all) \
             --verbose_failures \
