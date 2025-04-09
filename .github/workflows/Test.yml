@@ -168,21 +168,13 @@ jobs:
           sed -i 's/-dirty//' ./common/scripts/setlocalversion
           sed -i 's/-dirty//' ./msm-kernel/scripts/setlocalversion
           sed -i 's/-dirty//' ./external/dtc/scripts/setlocalversion
-          sed -i 's/-dirty//' ./build/kernel/kleaf/workspace_status_stamp.py || echo "No workspace_status_stamp.py!"
+          sed -i 's/-dirty//' ./build/kernel/kleaf/workspace_status_stamp.py || echo "No workspace_status_stamp.py!"      
 
-      - name: Verify build_with_bazel.py Presence
-        working-directory: builds/${{ env.ROOT_DIR }}/kernel_platform/oneplus13r_v/kernel_platform
+      - name: Build Kernel
+        working-directory: builds/${{ env.ROOT_DIR }}/kernel_platform/oneplus13r_v/
         run: |
-          if [ ! -f ./build_with_bazel.py ]; then
-            echo "Error: build_with_bazel.py not found!"
-            exit 1
-          fi
-
-      - name: Build the Kernel
-        run: |
-          echo "Changing to configuration directory: $CONFIG..."
-          cd "$CONFIG"
-
+          cd kernel_platform
+          mkdir out
           export PATH="/usr/lib/ccache:$PATH"
           ./build_with_bazel.py \
             -t sun perf \
@@ -194,7 +186,7 @@ jobs:
             --ignore_missing_projects \
             --lto=thin \
             -o "$(pwd)/out" || { echo "Bazel build failed"; exit 1; }
-
+            
       - name: Create ZIP Package
         working-directory: builds/${{ env.ROOT_DIR }}
         run: |
