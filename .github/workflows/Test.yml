@@ -160,11 +160,11 @@ jobs:
           sed -i 's/-dirty//' ./msm-kernel/scripts/setlocalversion
           sed -i 's/-dirty//' ./external/dtc/scripts/setlocalversion
           sed -i 's/-dirty//' ./build/kernel/kleaf/workspace_status_stamp.py || echo "No workspace_status_stamp.py!"
-      - name: Build Kernel
-        working-directory: builds/${{ env.ROOT_DIR }}/kernel_platform/oneplus13r_v/
+      - name: Build the Kernel
         run: |
-          cd kernel_platform
-          mkdir out
+          echo "Changing to configuration directory: $CONFIG..."
+          cd "$CONFIG"
+
           export PATH="/usr/lib/ccache:$PATH"
           ./build_with_bazel.py \
             -t sun perf \
